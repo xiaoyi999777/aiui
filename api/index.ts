@@ -139,20 +139,27 @@ app.post("/api/proxy", async (req, res) => {
     const { url, method, headers, body } = req.body;
     if (!url) return res.status(400).json({ error: "URL is required" });
 
-    const response = await fetch(url, {
-      method: method || 'POST',
+    const fetchOptions: any = {
+      method: method || 'GET',
       headers: headers || {},
-      body: body ? JSON.stringify(body) : undefined
-    });
-
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      const data = await response.json();
-      res.status(response.status).json(data);
-    } else {
-      const text = await response.text();
-      res.status(response.status).send(text);
+    };
+    
+    if (body && (method === 'POST' || method === 'PUT')) {
+      fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
     }
+
+    const response = await fetch(url, fetchOptions);
+    const contentType = response.headers.get('content-type');
+    
+    // Set matching content type for the response
+    if (contentType) {
+      res.setHeader('Content-Type', contentType);
+    }
+
+    // Forward the response as a buffer
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    res.status(response.status).send(buffer);
   } catch (error: any) {
     console.error("Proxy Error:", error);
     res.status(500).json({ error: error.message || "Proxy request failed" });

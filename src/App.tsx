@@ -321,25 +321,34 @@ export default function App() {
 
   const downloadImage = async (url: string, prefix = 'ai-beauty') => {
     try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
+      let finalUrl = url;
+      // Use proxy for remote URLs to avoid CORS issues
+      if (!url.startsWith('data:') && !url.startsWith('blob:')) {
+        const proxyRes = await fetch('/api/proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, method: 'GET' })
+        });
+        if (proxyRes.ok) {
+          const blob = await proxyRes.blob();
+          finalUrl = window.URL.createObjectURL(blob);
+        }
+      } else if (url.startsWith('data:')) {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        finalUrl = window.URL.createObjectURL(blob);
+      }
+
       const link = document.createElement('a');
-      link.href = blobUrl;
+      link.href = finalUrl;
       link.download = `${prefix}-${Date.now()}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      if (finalUrl.startsWith('blob:')) window.URL.revokeObjectURL(finalUrl);
     } catch (error) {
       console.error("Download failed, falling back to direct link", error);
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank';
-      link.download = `${prefix}-${Date.now()}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      window.open(url, '_blank');
     }
   };
 
@@ -586,13 +595,18 @@ export default function App() {
         return new File([blob], filename, { type: blob.type });
       }
       
-      // If it's a remote URL, try to fetch it
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-      const blob = await res.blob();
+      // Use our server proxy to avoid CORS "Failed to fetch" on deployed environments
+      const proxyRes = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, method: 'GET' })
+      });
+
+      if (!proxyRes.ok) throw new Error(`Proxy fetch failed: ${proxyRes.status}`);
+      const blob = await proxyRes.blob();
       return new File([blob], filename, { type: blob.type });
     } catch (err) {
-      console.error(`Failed to fetch file from URL: ${url}`, err);
+      console.error(`Failed to fetch file via proxy from URL: ${url}`, err);
       return null;
     }
   };
