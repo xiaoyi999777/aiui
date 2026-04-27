@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "Patient": {
+      "title": "Patient",
+      "description": "Stored clinic patient with simulation parameters",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Patient full name" },
+        "info": { "type": "string", "description": "Clinical notes/info" },
+        "imageUrl": { "type": "string", "description": "Base64 or URL of original image" },
+        "params": {
+          "type": "object",
+          "properties": {
+            "age": { "type": "number" },
+            "physique": { "type": "string" },
+            "surgeryMethod": { "type": "string" },
+            "materials": { "type": "string" },
+            "careLevel": { "type": "string" }
+          }
+        },
+        "intensities": { "type": "object", "description": "Map of project IDs to intensity levels" },
+        "userId": { "type": "string", "description": "Firebase Auth UID of the consultant" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "userId", "imageUrl"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "Marketing asset (visuals, images)",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "prompt": { "type": "string" },
+        "type": { "type": "string", "enum": ["vlog_clip", "face_simulation"] },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["url", "userId", "type"]
+    }
+  },
+  "firestore": {
+    "patients/{patientId}": {
+      "schema": "Patient",
+      "description": "Collection of patient records"
+    },
+    "assets/{assetId}": {
+      "schema": "Asset",
+      "description": "Collection of marketing assets"
+    }
+  }
+}

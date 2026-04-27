@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Validation for Patient
+    function isValidPatient(data) {
+      return data.name is string && data.name.size() <= 100 &&
+             data.userId == request.auth.uid &&
+             data.imageUrl is string && data.imageUrl.size() <= 1048576 * 5 && // Max 5MB for base64
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /patients/{patientId} {
+      allow create: if isSignedIn() && 
+                      isValidId(patientId) && 
+                      isValidPatient(request.resource.data) &&
+                      request.resource.data.createdAt == request.time;
+      
+      allow get, list: if isOwner(resource.data.userId);
+      
+      allow update: if isOwner(resource.data.userId) && 
+                      isValidPatient(request.resource.data) &&
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.createdAt == resource.data.createdAt &&
+                      request.resource.data.updatedAt == request.time &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'info', 'imageUrl', 'params', 'intensities', 'updatedAt']);
+      
+      allow delete: if isOwner(resource.data.userId);
+    }
+  }
+}

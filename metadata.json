@@ -1,0 +1,11 @@
+{
+  "name": "Aesthetix AI Clinical Studio",
+  "description": "Professional clinical aesthetic simulation platform featuring a 30-day recovery timeline, patient-specific factors, and anatomical AI analysis.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "AI Image Analysis",
+    "Aesthetic Simulation"
+  ]
+}
