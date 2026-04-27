@@ -5,6 +5,7 @@ import "dotenv/config";
 import { createServer as createViteServer } from "vite";
 import OpenAI from "openai";
 import multer from "multer";
+import cors from "cors";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +15,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(cors());
+  
   // Logging middleware
   app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);

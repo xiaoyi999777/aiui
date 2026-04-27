@@ -396,7 +396,8 @@ export default function App() {
 
     try {
       const getApiKey = () => {
-        return (import.meta.env.VITE_GEMINI_API_KEY as string) || (window as any).process?.env?.GEMINI_API_KEY || '';
+        const metaEnv = (import.meta as any).env;
+        return (metaEnv?.VITE_GEMINI_API_KEY as string) || (window as any).process?.env?.GEMINI_API_KEY || '';
       };
       const apiKey = getApiKey();
       if (!apiKey) throw new Error("API Key required");
@@ -962,14 +963,20 @@ Instructions:
     setIsGenerating(true);
     setGenError(null);
     const getApiKey = () => {
-      return (import.meta.env.VITE_GEMINI_API_KEY as string) || (window as any).process?.env?.GEMINI_API_KEY || '';
+      const metaEnv = (import.meta as any).env;
+      return (metaEnv?.VITE_GEMINI_API_KEY as string) || (window as any).process?.env?.GEMINI_API_KEY || '';
     };
     const apiKey = getApiKey();
     if (!apiKey) {
-      throw new Error("API Key (GEMINI_API_KEY) is not configured in the environment.");
+      setIsGenerating(false);
+      setGenError("API Key (GEMINI_API_KEY) is not configured in the environment.");
+      return;
     }
 
     try {
+      const activeProjects = Object.keys(intensities).filter(k => (intensities[k] || 0) > 0);
+      const projectSummary = activeProjects.map(p => `${p}(Intensity: ${intensities[p]}%)`).join(', ');
+
       const ai = new GoogleGenAI({ apiKey });
 
       const promptMasterContext = `
