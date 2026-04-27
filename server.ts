@@ -1,18 +1,28 @@
 import express from "express";
 import path from "path";
+import { fileURLToPath } from "url";
 import "dotenv/config";
 import { createServer as createViteServer } from "vite";
 import OpenAI from "openai";
 import multer from "multer";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const upload = multer({ storage: multer.memoryStorage() });
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Logging middleware
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+  });
+
   app.use(express.json({ limit: '50mb' }));
 
+  // API Routes
   app.post("/api/generate-image", async (req, res) => {
     try {
       const { prompt, chineseStyle, customApiKey, customBaseUrl } = req.body;
@@ -110,7 +120,6 @@ async function startServer() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey.trim()}`
-          // Note: fetch will set the correct Content-Type with boundary for FormData
         },
         body: formData
       });
@@ -135,8 +144,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/simulate", async (req, res) => {
-    // Gemini logic moved to frontend per platform guidelines
+  app.post("/api/simulate", (req, res) => {
     res.json({ success: true, message: "Use frontend Gemini SDK" });
   });
 
@@ -144,8 +152,6 @@ async function startServer() {
     try {
       const { url, method, headers, body } = req.body;
       if (!url) return res.status(400).json({ error: "URL is required" });
-
-      console.log(`[Proxy] Forwarding ${method || 'POST'} request to: ${url}`);
 
       const response = await fetch(url, {
         method: method || 'POST',
@@ -167,15 +173,21 @@ async function startServer() {
     }
   });
 
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", env: process.env.NODE_ENV });
+  });
+
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  const isProd = process.env.NODE_ENV === "production";
+  if (!isProd) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
@@ -183,7 +195,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Aesthetix Clinical Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT} [${isProd ? 'PROD' : 'DEV'}]`);
   });
 }
 
