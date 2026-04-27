@@ -319,13 +319,28 @@ export default function App() {
   const [isGeneratingFaceSwap, setIsGeneratingFaceSwap] = useState(false);
   const [selectedFaceImg, setSelectedFaceImg] = useState<string | null>(null);
 
-  const downloadImage = (url: string, prefix = 'ai-beauty') => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${prefix}-${Date.now()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadImage = async (url: string, prefix = 'ai-beauty') => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `${prefix}-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Download failed, falling back to direct link", error);
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.download = `${prefix}-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const [faceFilters, setFaceFilters] = useState({
