@@ -7,6 +7,8 @@ import OpenAI from "openai";
 import multer from "multer";
 import cors from "cors";
 
+import { GoogleGenAI } from "@google/genai";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const upload = multer({ storage: multer.memoryStorage() });
@@ -28,7 +30,7 @@ async function startServer() {
   // API Routes
   app.post("/api/generate-image", async (req, res) => {
     try {
-      const { prompt, chineseStyle, customApiKey, customBaseUrl } = req.body;
+      const { prompt, chineseStyle, customApiKey, customBaseUrl, model } = req.body;
       if (!prompt) {
         return res.status(400).json({ error: "Prompt is required" });
       }
@@ -49,11 +51,12 @@ async function startServer() {
       }
 
       const response = await openai.images.generate({
-        model: "dall-e-3",
+        model: model || "dall-e-3",
         prompt: `Photorealistic high-quality image, 9:16 vertical framing. ${basePrompt}. Style: Professional photography, natural lighting, 8k resolution.`,
         n: 1,
         size: "1024x1792",
         quality: "hd",
+        response_format: "url"
       });
 
       res.json({ url: response.data[0].url });
@@ -81,7 +84,15 @@ async function startServer() {
         body: JSON.stringify(payload)
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get('content-type');
+      let data;
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { error: text || "Empty response from upstream", status: response.status };
+      }
+
       if (!response.ok) {
         return res.status(response.status).json(data);
       }
@@ -156,20 +167,52 @@ async function startServer() {
       const { url, method, headers, body } = req.body;
       if (!url) return res.status(400).json({ error: "URL is required" });
 
-      const response = await fetch(url, {
-        method: method || 'POST',
-        headers: headers || {},
-        body: body ? JSON.stringify(body) : undefined
-      });
+      const fetchOptions: any = {
+        method: (method || 'GET').toUpperCase(),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          ...(headers || {})
+        },
+        redirect: 'follow'
+      };
+      
+      if (body && (fetchOptions.method === 'POST' || fetchOptions.method === 'PUT')) {
+        const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+        fetchOptions.body = bodyStr;
+        console.log(`[Proxy] Body set, method: ${fetchOptions.method}, length: ${bodyStr.length} characters`);
+      }
+
+      console.log(`[Proxy] Forwarding ${fetchOptions.method} to ${url}`);
+      const response = await fetch(url, fetchOptions);
+      
+      if (response.redirected) {
+        console.log(`[Proxy] Redirected to: ${response.url}`);
+      }
+
+      if (!response.ok) {
+        console.error(`Upstream Error [${url}]: ${response.status} ${response.statusText}`);
+        console.log(`Request Method: ${fetchOptions.method}`);
+        console.log(`Request Headers:`, JSON.stringify(fetchOptions.headers, null, 2));
+        
+        // Try to get more info from body
+        try {
+          const bodyPeek = await response.clone().text();
+          console.log(`Upstream Response Body Peek: ${bodyPeek.slice(0, 200)}`);
+        } catch (e) {
+          console.log(`Could not peek body.`);
+        }
+      }
 
       const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
-        res.status(response.status).json(data);
-      } else {
-        const text = await response.text();
-        res.status(response.status).send(text);
+      
+      if (contentType) {
+        res.setHeader('Content-Type', contentType);
       }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      res.status(response.status).send(buffer);
     } catch (error: any) {
       console.error("Proxy Error:", error);
       res.status(500).json({ error: error.message || "Proxy request failed" });
