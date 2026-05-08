@@ -7,8 +7,6 @@ import OpenAI from "openai";
 import multer from "multer";
 import cors from "cors";
 
-import { GoogleGenAI } from "@google/genai";
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const upload = multer({ storage: multer.memoryStorage() });
@@ -94,12 +92,16 @@ async function startServer() {
       }
 
       if (!response.ok) {
+        console.error(`[FaceSwap] Upstream Error (${response.status}):`, data);
         return res.status(response.status).json(data);
       }
       res.json(data);
     } catch (error: any) {
       console.error("FaceSwap Server Error:", error);
-      res.status(500).json({ error: error.message || "FaceSwap request failed" });
+      res.status(500).json({ 
+        error: error.message || "FaceSwap request failed",
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+      });
     }
   });
 
